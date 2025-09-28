@@ -89,7 +89,7 @@ def background_downloader():
             save_state(download_state)
 
             # --- Random Sleep ---
-            sleep_seconds = random.randint(2 * 60, 10 * 60)
+            sleep_seconds = random.randint(2 * 60, 3 * 60)
             print(f"INFO: Sleeping for {sleep_seconds / 60:.1f} minutes...")
             print("-" * 40) # <== NEW SEPARATOR
             for _ in range(sleep_seconds):
