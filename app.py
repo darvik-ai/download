@@ -5,7 +5,7 @@ import time
 import json
 import random
 import threading
-from flask import Flask, render_template_string, jsonify
+from flask import Flask, render_template_string
 
 app = Flask(__name__)
 
@@ -16,7 +16,7 @@ BASE_URL = "https://user-gen-media-assets.s3.amazonaws.com/gemini_images/"
 OUTPUT_DIR = "downloaded_images_server"
 LOG_FILE = "successful_downloads_server.txt"
 STATE_FILE = "download_state.json"
-MAX_SUCCESS_REQUESTS = 1000 # The downloader will stop after reaching this goal.
+MAX_SUCCESS_REQUESTS = 1000
 
 # ==============================================================================
 # ==> GLOBAL STATE MANAGEMENT
@@ -47,29 +47,28 @@ download_stop_event = threading.Event()
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ==============================================================================
-# ==> BACKGROUND DOWNLOADER (WITH DETAILED LOGGING)
+# ==> BACKGROUND DOWNLOADER (WITH FORCED LOG FLUSHING)
 # ==============================================================================
 
 def background_downloader():
     global download_state
-    print("INFO: Background downloader thread started.")
+    # Short pause to ensure the logging system is ready before the first print
+    time.sleep(2)
+    print("INFO: Background downloader thread started.", flush=True)
 
     while not download_stop_event.is_set():
-        # Check if the download goal has been met
         if download_state.get("total_successful", 0) < MAX_SUCCESS_REQUESTS:
-            # --- Perform Download Attempt ---
             download_state["total_attempts"] += 1
             filename = f"{uuid.uuid4()}.png"
             full_url = f"{BASE_URL}{filename}"
             
-            print(f"ATTEMPT: #{download_state['total_attempts']} | Trying URL: {full_url}") # <== MORE DETAIL
+            print(f"ATTEMPT: #{download_state['total_attempts']} | Trying URL: {full_url}", flush=True)
 
             try:
                 response = requests.get(full_url, stream=True, timeout=15)
                 
-                # --- NEW: Log every response ---
                 if response.status_code == 200:
-                    print(f"-> SUCCESS! RESPONSE: 200 OK") # <== MORE DETAIL
+                    print(f"-> SUCCESS! RESPONSE: 200 OK", flush=True)
                     download_state["total_successful"] += 1
                     local_path = os.path.join(OUTPUT_DIR, filename)
                     with open(local_path, 'wb') as f:
@@ -78,33 +77,30 @@ def background_downloader():
                     with open(LOG_FILE, 'a') as f_log:
                         f_log.write(full_url + '\n')
                 else:
-                    # This is the new part that logs failures
-                    print(f"-> FAILED. RESPONSE: {response.status_code}") # <== NEW LOG FOR FAILURES
+                    print(f"-> FAILED. RESPONSE: {response.status_code}", flush=True)
                     download_state["total_failed"] += 1
             
             except requests.exceptions.RequestException as e:
                 download_state["total_failed"] += 1
-                print(f"-> ERROR: Network request failed: {e}") # <== MORE DETAIL
+                print(f"-> ERROR: Network request failed: {e}", flush=True)
 
             save_state(download_state)
 
-            # --- Random Sleep ---
             sleep_seconds = random.randint(2 * 60, 3 * 60)
-            print(f"INFO: Sleeping for {sleep_seconds / 60:.1f} minutes...")
-            print("-" * 40) # <== NEW SEPARATOR
+            print(f"INFO: Sleeping for {sleep_seconds / 60:.1f} minutes...", flush=True)
+            print("-" * 40, flush=True)
             for _ in range(sleep_seconds):
                 if download_stop_event.is_set(): break
                 time.sleep(1)
         else:
-            # --- Goal Reached, Idle Mode ---
             for _ in range(60):
                 if download_stop_event.is_set(): break
                 time.sleep(1)
     
-    print("INFO: Background downloader thread has stopped.")
+    print("INFO: Background downloader thread has stopped.", flush=True)
 
 # ==============================================================================
-# ==> FLASK ROUTES (SIMPLIFIED)
+# ==> FLASK ROUTES
 # ==============================================================================
 @app.route('/')
 def index():
@@ -160,14 +156,14 @@ def start_downloader_thread():
     if download_thread is None or not download_thread.is_alive():
         download_thread = threading.Thread(target=background_downloader, daemon=True)
         download_thread.start()
-        print("INFO: Downloader thread started.")
+        print("INFO: Downloader thread starting sequence initiated.", flush=True)
 
 if __name__ == '__main__':
     start_downloader_thread()
     try:
         app.run(host='0.0.0.0', port=5000, debug=False)
     except KeyboardInterrupt:
-        print("\nINFO: Server shutting down...")
+        print("\nINFO: Server shutting down...", flush=True)
     finally:
         download_stop_event.set()
-        print("INFO: Application exiting.")
+        print("INFO: Application exiting.", flush=True)
