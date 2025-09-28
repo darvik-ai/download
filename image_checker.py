@@ -1,52 +1,41 @@
 import requests
 import time
 import random
-import re
+import uuid
 from urllib.parse import urljoin
 
-# Base URL - Replace with your actual base domain URL ending with '/'
+# Base URL - replace with your actual base URL ending with '/'
 base_url = 'https://user-gen-media-assets.s3.amazonaws.com/gemini_images/'
 
+# HTTP headers with User-Agent
+headers = {
+    'User-Agent': 'Mozilla/5.0 (compatible; UUIDImageChecker/1.0)'
+}
 
-# Given image names to identify pattern
-image_names = [
-    '5df452ce-91b6-433d-bb97-abe2eed3aab8.png',
-    'ce164af9-72be-4713-97fa-f07257cd09dd.png'
-]
+def generate_unique_uuids(seen):
+    while True:
+        new_uuid = str(uuid.uuid4())
+        if new_uuid not in seen:
+            seen.add(new_uuid)
+            yield new_uuid
 
-# Regex pattern for UUID-based image names (simple UUID + .png)
-pattern = re.compile(r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.png')
-
-# Extract base UUID parts from given image names
-base_uuids = []
-for name in image_names:
-    match = pattern.match(name)
-    if match:
-        base_uuids.append(match.group(1))
-
-def generate_guesses(base_uuids, limit=10):
-    guesses = []
-    hex_chars = '0123456789abcdef'
-    for base_uuid in base_uuids:
-        for i in range(limit):
-            # Change last character of UUID by cycling through hex characters
-            guess_uuid = base_uuid[:-1] + hex_chars[i % 16]
-            guess_name = guess_uuid + '.png'
-            guesses.append(guess_name)
-    return guesses
-
-def check_images(base_url, guesses, limit):
+def check_images(base_url, success_limit):
     success_urls = []
-    for guess_name in guesses:
-        if len(success_urls) >= limit:
-            break
-        url = urljoin(base_url, guess_name)
+    seen_uuids = set()
+    uuid_gen = generate_unique_uuids(seen_uuids)
+
+    while len(success_urls) < success_limit:
+        image_uuid = next(uuid_gen)
+        img_name = image_uuid + '.png'
+        url = urljoin(base_url, img_name)
         print(f'Requesting URL: {url}')
         try:
-            response = requests.head(url, timeout=10)
+            response = requests.get(url, headers=headers, timeout=10)
             if response.status_code == 200:
                 print(f'Success: {url}')
                 success_urls.append(url)
+            elif response.status_code == 403:
+                print(f'Forbidden (403): {url}')
             else:
                 print(f'Failed (status {response.status_code}): {url}')
         except Exception as e:
@@ -54,16 +43,16 @@ def check_images(base_url, guesses, limit):
         delay = random.randint(120, 180)
         print(f'Sleeping for {delay} seconds\n')
         time.sleep(delay)
+
     return success_urls
 
 if __name__ == '__main__':
-    # Set how many successful entries to gather
-    limit = 5
-    print(f'Starting with limit={limit}\n')
-    guesses = generate_guesses(base_uuids, limit*2)  # Generate more to hit limit
-    successes = check_images(base_url, guesses, limit)
+    success_limit = 50  # Number of successful URLs to find
+    print(f'Starting UUID image check until {success_limit} successes\n')
+    successes = check_images(base_url, success_limit)
 
-    with open('success_urls.txt', 'w') as file:
+    with open('success_urls.txt', 'w') as f:
         for url in successes:
-            file.write(url + '\n')
-    print(f'\nCompleted checking. {len(successes)} success URLs saved in success_urls.txt')
+            f.write(url + '\n')
+
+    print(f'Completed. Found {len(successes)} successful URLs saved to success_urls.txt')
