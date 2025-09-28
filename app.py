@@ -47,7 +47,7 @@ download_stop_event = threading.Event()
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ==============================================================================
-# ==> BACKGROUND DOWNLOADER (SIMPLIFIED LOGIC)
+# ==> BACKGROUND DOWNLOADER (WITH DETAILED LOGGING)
 # ==============================================================================
 
 def background_downloader():
@@ -62,13 +62,15 @@ def background_downloader():
             filename = f"{uuid.uuid4()}.png"
             full_url = f"{BASE_URL}{filename}"
             
-            print(f"ATTEMPT: #{download_state['total_attempts']} | Trying: {filename[:23]}...")
+            print(f"ATTEMPT: #{download_state['total_attempts']} | Trying URL: {full_url}") # <== MORE DETAIL
 
             try:
                 response = requests.get(full_url, stream=True, timeout=15)
+                
+                # --- NEW: Log every response ---
                 if response.status_code == 200:
+                    print(f"-> SUCCESS! RESPONSE: 200 OK") # <== MORE DETAIL
                     download_state["total_successful"] += 1
-                    print(f"SUCCESS! ({download_state['total_successful']}/{MAX_SUCCESS_REQUESTS})")
                     local_path = os.path.join(OUTPUT_DIR, filename)
                     with open(local_path, 'wb') as f:
                         for chunk in response.iter_content(chunk_size=8192):
@@ -76,23 +78,25 @@ def background_downloader():
                     with open(LOG_FILE, 'a') as f_log:
                         f_log.write(full_url + '\n')
                 else:
+                    # This is the new part that logs failures
+                    print(f"-> FAILED. RESPONSE: {response.status_code}") # <== NEW LOG FOR FAILURES
                     download_state["total_failed"] += 1
+            
             except requests.exceptions.RequestException as e:
                 download_state["total_failed"] += 1
-                print(f"ERROR: Network request failed: {e}")
+                print(f"-> ERROR: Network request failed: {e}") # <== MORE DETAIL
 
             save_state(download_state)
 
             # --- Random Sleep ---
             sleep_seconds = random.randint(2 * 60, 10 * 60)
             print(f"INFO: Sleeping for {sleep_seconds / 60:.1f} minutes...")
+            print("-" * 40) # <== NEW SEPARATOR
             for _ in range(sleep_seconds):
                 if download_stop_event.is_set(): break
                 time.sleep(1)
         else:
             # --- Goal Reached, Idle Mode ---
-            # The goal has been met. The thread will now sleep in intervals,
-            # keeping it alive but using minimal resources.
             for _ in range(60):
                 if download_stop_event.is_set(): break
                 time.sleep(1)
