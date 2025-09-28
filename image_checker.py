@@ -61,7 +61,7 @@ def check_images(base_url, success_limit):
         except Exception as e:
             print(f'Error: {e} for URL: {url}')
 
-        delay = random.randint(120, 180)
+        delay = random.randint(0, 30)
         print(f'Sleeping for {delay} seconds\n')
         time.sleep(delay)
 
