@@ -1,0 +1,26 @@
+services:
+  # A Web Service for the Flask App
+  - type: web
+    name: image-downloader-web
+    env: python
+    plan: free # or your preferred instance type
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn app:app"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.9 # Use a specific version
+      - key: PYTHONUNBUFFERED # Ensures logs appear instantly
+        value: 1
+
+  # A Worker Service for the downloader
+  - type: worker
+    name: image-downloader-worker
+    env: python
+    plan: free # or your preferred instance type
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python worker.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.9
+      - key: PYTHONUNBUFFERED
+        value: 1
